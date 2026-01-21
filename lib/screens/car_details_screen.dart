@@ -54,7 +54,7 @@ class CarDetailsScreen extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      isLoggedIn ? 'Rezervacija (demo)' : 'Prijavi se da rezervišeš (demo)',
+                      isLoggedIn ? 'Rezervacija' : 'Prijavi se da bi mogao rezervisati',
                     ),
                   ),
                 );
