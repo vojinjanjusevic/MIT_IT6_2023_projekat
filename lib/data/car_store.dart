@@ -3,12 +3,14 @@ import '../models/app_user.dart';
 import '../models/car.dart';
 
 class CarStore {
+  //privatni konstruktor ._
   CarStore._();
   static final CarStore instance = CarStore._();
 
   AppUser? currentUser;
-
+  //referenca na listu se ne menja zbog final, ali se mogu dodavati i brisasti elementi liste
   final List<Car> _cars = [
+    //dummy oglasi
     const Car(
       id: '1',
       ownerId: 'u1',
@@ -34,7 +36,7 @@ class CarStore {
       description: 'Uvoz. Kao nov. Bez ulaganja.',
     ),
   ];
-
+  //list.unmodifiable -- read-only
   List<Car> get allCars => List.unmodifiable(_cars);
 
   List<Car> myCars() {
