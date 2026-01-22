@@ -22,6 +22,7 @@ class CarStore {
       fuel: 'Dizel',
       gearbox: 'Manuelni',
       description: 'Redovno servisiran. Mali potrošač. Dobra limarija.',
+      imagePaths: const [],
     ),
     const Car(
       id: '2',
@@ -34,6 +35,7 @@ class CarStore {
       fuel: 'Dizel',
       gearbox: 'Manuelni',
       description: 'Uvoz. Kao nov. Bez ulaganja.',
+      imagePaths: const [],
     ),
   ];
   //list.unmodifiable -- read-only

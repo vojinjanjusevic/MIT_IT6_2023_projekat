@@ -9,6 +9,7 @@ class Car {
   final String fuel;
   final String gearbox;
   final String description;
+  final List<String> imagePaths;
 
   const Car({
     //u kontruktoru this.id je isto sto i this.id=id u javi npr
@@ -22,6 +23,7 @@ class Car {
     required this.fuel,
     required this.gearbox,
     required this.description,
+    required this.imagePaths,
   });
 
   Car copyWith({
@@ -35,6 +37,7 @@ class Car {
     String? fuel,
     String? gearbox,
     String? description,
+    List<String>? imagePaths,
   }) {
     return Car(
       //Ako je prosleđena nova cena, koristi nju
@@ -49,6 +52,7 @@ class Car {
       fuel: fuel ?? this.fuel,
       gearbox: gearbox ?? this.gearbox,
       description: description ?? this.description,
+      imagePaths: imagePaths ?? this.imagePaths,
     );
   }
 }

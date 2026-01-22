@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/car_store.dart';
 import '../widgets/spec_chip.dart';
+import 'dart:io';
 
 class CarDetailsScreen extends StatelessWidget {
   final String carId;
@@ -9,7 +10,7 @@ class CarDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-     final store = CarStore.instance;
+    final store = CarStore.instance;
     final car = store.allCars.firstWhere((c) => c.id == carId);
     final isLoggedIn = store.currentUser != null;
 
@@ -17,20 +18,39 @@ class CarDetailsScreen extends StatelessWidget {
       appBar: AppBar(title: Text(car.title)),
       body: Padding(
         padding: const EdgeInsets.all(12),
-        child:ListView(
+        child: ListView(
           children: [
-            Container(
-              height: 220,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            if (car.imagePaths.isEmpty)
+              Container(
+                height: 220,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+                child: const Center(
+                  child: Icon(Icons.directions_car, size: 72),
+                ),
+              )
+            else
+              SizedBox(
+                height: 220,
+                child: PageView.builder(
+                  itemCount: car.imagePaths.length,
+                  itemBuilder: (_, i) => ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.file(
+                      File(car.imagePaths[i]),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
               ),
-              child: const Center(child: Icon(Icons.directions_car,size: 72)),
-            ),
             const SizedBox(height: 12),
-        Text(
+            Text(
               '${car.priceEur} €',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Wrap(
@@ -54,13 +74,17 @@ class CarDetailsScreen extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      isLoggedIn ? 'Rezervacija' : 'Prijavi se da bi mogao rezervisati',
+                      isLoggedIn
+                          ? 'Rezervacija'
+                          : 'Prijavi se da bi mogao rezervisati',
                     ),
                   ),
                 );
               },
               icon: const Icon(Icons.bookmark_add_outlined),
-              label: Text(isLoggedIn ? 'Rezerviši' : 'Prijavi se za rezervaciju'),
+              label: Text(
+                isLoggedIn ? 'Rezerviši' : 'Prijavi se za rezervaciju',
+              ),
             ),
           ],
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/car_store.dart';
 import 'auth_login_screen.dart';
 import 'auth_register_screen.dart';
+import '../theme/theme_controller.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -9,6 +10,7 @@ class ProfileScreen extends StatefulWidget {
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
+
 class _ProfileScreenState extends State<ProfileScreen> {
   void refresh() => setState(() {});
 
@@ -30,11 +32,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle: Text('Prijavi se ili registruj se'),
                   ),
                   const SizedBox(height: 12),
+                  SwitchListTile(
+                    value: ThemeController.instance.isDark,
+                    onChanged: (v) {
+                      ThemeController.instance.setDark(v);
+                      setState(() {}); // ✅ osveži ovaj ekran
+                    },
+                    title: const Text('Dark theme'),
+                    secondary: const Icon(Icons.dark_mode_outlined),
+                  ),
+
+                  const SizedBox(height: 12),
                   FilledButton(
                     onPressed: () async {
                       final ok = await Navigator.push<bool>(
                         context,
-                        MaterialPageRoute(builder: (_) => const AuthLoginScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const AuthLoginScreen(),
+                        ),
                       );
                       if (ok == true) refresh();
                     },
@@ -45,7 +60,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onPressed: () async {
                       final ok = await Navigator.push<bool>(
                         context,
-                        MaterialPageRoute(builder: (_) => const AuthRegisterScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const AuthRegisterScreen(),
+                        ),
                       );
                       if (ok == true) refresh();
                     },
@@ -62,6 +79,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle: Text(user.email),
                   ),
                   const Divider(),
+                  SwitchListTile(
+                    value: ThemeController.instance.isDark,
+                    onChanged: (v) {
+                      ThemeController.instance.setDark(v);
+                      setState(() {}); // ✅ osveži ovaj ekran
+                    },
+                    title: const Text('Dark theme'),
+                    secondary: const Icon(Icons.dark_mode_outlined),
+                  ),
+
+                  const SizedBox(height: 12),
                   FilledButton(
                     onPressed: () {
                       store.logout();
