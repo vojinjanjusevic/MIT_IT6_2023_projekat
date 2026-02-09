@@ -12,6 +12,7 @@ class _AuthLoginScreenState extends State<AuthLoginScreen> {
   final formKey = GlobalKey<FormState>();
   final emailCtrl = TextEditingController();
   final passCtrl = TextEditingController();
+  bool asAdmin = false;
 
   @override
   void dispose() {
@@ -22,7 +23,12 @@ class _AuthLoginScreenState extends State<AuthLoginScreen> {
 
   void submit() {
     if (!formKey.currentState!.validate()) return;
-    CarStore.instance.loginAsUser(emailCtrl.text.trim());
+    final email = emailCtrl.text.trim();
+    if (asAdmin) {
+      CarStore.instance.loginAsAdmin(email);
+    } else {
+      CarStore.instance.loginAsUser(email);
+    }
     Navigator.pop(context, true); // true -> login uspeo
   }
 
@@ -38,15 +44,31 @@ class _AuthLoginScreenState extends State<AuthLoginScreen> {
             children: [
               TextFormField(
                 controller: emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
-                validator: (v) => (v == null || !v.contains('@')) ? 'Unesi validan email' : null,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || !v.contains('@'))
+                    ? 'Unesi validan email'
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: passCtrl,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Lozinka', border: OutlineInputBorder()),
-                validator: (v) => (v == null || v.length < 4) ? 'Min 4 karaktera' : null,
+                decoration: const InputDecoration(
+                  labelText: 'Lozinka',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    (v == null || v.length < 4) ? 'Min 4 karaktera' : null,
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                value: asAdmin,
+                onChanged: (v) => setState(() => asAdmin = v),
+                title: const Text('Prijavi se kao admin'),
+                secondary: const Icon(Icons.admin_panel_settings_outlined),
               ),
               const Spacer(),
               FilledButton(onPressed: submit, child: const Text('Prijavi se')),

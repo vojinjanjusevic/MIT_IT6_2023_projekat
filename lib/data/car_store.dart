@@ -8,6 +8,28 @@ class CarStore {
   static final CarStore instance = CarStore._();
 
   AppUser? currentUser;
+
+  final List<AppUser> _users = [
+    const AppUser(
+      id: 'a1',
+      name: 'Admin',
+      email: 'admin@cardealer.rs',
+      role: UserRole.admin,
+    ),
+    const AppUser(
+      id: 'u1',
+      name: 'Korisnik',
+      email: 'user@cardealer.rs',
+      role: UserRole.user,
+    ),
+    const AppUser(
+      id: 'u2',
+      name: 'Drugi korisnik',
+      email: 'u2@cardealer.rs',
+      role: UserRole.user,
+    ),
+  ];
+
   //referenca na listu se ne menja zbog final, ali se mogu dodavati i brisasti elementi liste
   final List<Car> _cars = [
     //dummy oglasi
@@ -49,20 +71,48 @@ class CarStore {
 
   // Fake auth
   void loginAsUser(String email) {
-    currentUser = AppUser(id: 'u1', name: 'Korisnik', email: email, role: UserRole.user);
+    // nađi ako postoji u _users, ako ne postoji napravi i ubaci
+    final existing = _users
+        .where((u) => u.email.toLowerCase() == email.toLowerCase())
+        .toList();
+    if (existing.isNotEmpty) {
+      currentUser = existing.first;
+      return;
+    }
+    final user = AppUser(
+      id: 'u${Random().nextInt(9999)}',
+      name: 'Korisnik',
+      email: email,
+      role: UserRole.user,
+    );
+    _users.insert(0, user);
+    currentUser = user;
   }
 
   void loginAsAdmin(String email) {
-    currentUser = AppUser(id: 'a1', name: 'Admin', email: email, role: UserRole.admin);
+    final foundAdmin = _users.where(
+      (u) =>
+          u.role == UserRole.admin &&
+          u.email.toLowerCase() == email.toLowerCase(),
+    );
+    if (foundAdmin.isNotEmpty) {
+      currentUser = foundAdmin.first;
+    } else {
+      // fallback: default admin
+      currentUser = _users.firstWhere((u) => u.role == UserRole.admin);
+    }
   }
 
   void register(String name, String email) {
-    currentUser = AppUser(
+    final user = AppUser(
       id: 'u${Random().nextInt(9999)}',
       name: name,
       email: email,
       role: UserRole.user,
     );
+
+    _users.insert(0, user);
+    currentUser = user;
   }
 
   void logout() => currentUser = null;
@@ -76,4 +126,11 @@ class CarStore {
   }
 
   void deleteCar(String id) => _cars.removeWhere((c) => c.id == id);
+  void deleteUser(String id) {
+  _users.removeWhere((u) => u.id == id);
+  _cars.removeWhere((c) => c.ownerId == id); // obriši i njegove oglase
+  if (currentUser?.id == id) currentUser = null;
+}
+
+  List<AppUser> get allUsers => List.unmodifiable(_users);
 }

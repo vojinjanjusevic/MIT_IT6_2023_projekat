@@ -3,6 +3,8 @@ import '../data/car_store.dart';
 import 'auth_login_screen.dart';
 import 'auth_register_screen.dart';
 import '../theme/theme_controller.dart';
+import 'admin_panel_screen.dart';
+import '../models/app_user.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -36,7 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     value: ThemeController.instance.isDark,
                     onChanged: (v) {
                       ThemeController.instance.setDark(v);
-                      setState(() {}); // ✅ osveži ovaj ekran
+                      setState(() {});
                     },
                     title: const Text('Dark theme'),
                     secondary: const Icon(Icons.dark_mode_outlined),
@@ -83,11 +85,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     value: ThemeController.instance.isDark,
                     onChanged: (v) {
                       ThemeController.instance.setDark(v);
-                      setState(() {}); // ✅ osveži ovaj ekran
+                      setState(() {});
                     },
                     title: const Text('Dark theme'),
                     secondary: const Icon(Icons.dark_mode_outlined),
                   ),
+
+                  if (user.role == UserRole.admin) ...[
+                    FilledButton.icon(
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AdminPanelScreen(),
+                          ),
+                        );
+                        refresh();
+                      },
+                      icon: const Icon(Icons.admin_panel_settings_outlined),
+                      label: const Text('Admin panel'),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
 
                   const SizedBox(height: 12),
                   FilledButton(
