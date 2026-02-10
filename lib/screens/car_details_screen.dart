@@ -9,7 +9,7 @@ class CarDetailsScreen extends StatelessWidget {
   const CarDetailsScreen({super.key, required this.carId});
 
   @override
-  Widget build(BuildContext context) {
+    Widget build(BuildContext context) {
     final store = CarStore.instance;
     final car = store.allCars.firstWhere((c) => c.id == carId);
     final isLoggedIn = store.currentUser != null;
