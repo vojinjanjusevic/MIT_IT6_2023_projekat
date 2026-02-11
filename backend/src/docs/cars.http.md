@@ -23,6 +23,8 @@ Query params for `GET /cars`:
 
 - `GET /cars/my`
 - `POST /cars`
+- `POST /cars/:id/reserve` (ulogovan korisnik koji nije vlasnik)
+- `POST /cars/:id/unreserve` (vlasnik, admin ili korisnik koji je rezervisao)
 - `PUT /cars/:id` (owner or admin)
 - `DELETE /cars/:id` (owner or admin)
 
@@ -41,3 +43,11 @@ Example create payload:
   "imagePaths": []
 }
 ```
+
+Example reserve request:
+
+`POST /api/cars/:id/reserve`
+
+Example unreserve request:
+
+`POST /api/cars/:id/unreserve`

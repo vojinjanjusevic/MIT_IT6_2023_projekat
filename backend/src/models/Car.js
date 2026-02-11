@@ -56,6 +56,15 @@ const carSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    reservedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    reservedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

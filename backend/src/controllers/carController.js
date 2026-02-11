@@ -99,7 +99,10 @@ const validateListingBody = (body) => {
 export const getCars = asyncHandler(async (req, res) => {
   const filters = buildFilters(req.query);
   const sort = getSort(req.query.sort);
-  const cars = await Car.find(filters).populate("owner", "name email role").sort(sort);
+  const cars = await Car.find(filters)
+    .populate("owner", "name email role")
+    .populate("reservedBy", "name email role")
+    .sort(sort);
 
   res.json({ count: cars.length, cars });
 });
@@ -112,7 +115,9 @@ export const getCarById = asyncHandler(async (req, res) => {
     throw new Error("Invalid car id");
   }
 
-  const car = await Car.findById(id).populate("owner", "name email role");
+  const car = await Car.findById(id)
+    .populate("owner", "name email role")
+    .populate("reservedBy", "name email role");
   if (!car) {
     res.status(404);
     throw new Error("Car listing not found");
@@ -128,13 +133,37 @@ export const createCar = asyncHandler(async (req, res) => {
     throw new Error(validationError);
   }
 
+  const {
+    title,
+    year,
+    km,
+    priceEur,
+    city,
+    fuel,
+    gearbox,
+    description,
+    imagePaths,
+  } = req.body;
+
   const created = await Car.create({
-    ...req.body,
+    title,
+    year,
+    km,
+    priceEur,
+    city,
+    fuel,
+    gearbox,
+    description,
+    imagePaths: Array.isArray(imagePaths) ? imagePaths : [],
     owner: req.user._id,
     reserved: false,
+    reservedBy: null,
+    reservedAt: null,
   });
 
-  const car = await Car.findById(created._id).populate("owner", "name email role");
+  const car = await Car.findById(created._id)
+    .populate("owner", "name email role")
+    .populate("reservedBy", "name email role");
   res.status(201).json({ car });
 });
 
@@ -178,7 +207,9 @@ export const updateCar = asyncHandler(async (req, res) => {
   });
 
   const updated = await car.save();
-  const populated = await Car.findById(updated._id).populate("owner", "name email role");
+  const populated = await Car.findById(updated._id)
+    .populate("owner", "name email role")
+    .populate("reservedBy", "name email role");
   res.json({ car: populated });
 });
 
@@ -208,6 +239,85 @@ export const deleteCar = asyncHandler(async (req, res) => {
 });
 
 export const getMyCars = asyncHandler(async (req, res) => {
-  const cars = await Car.find({ owner: req.user._id }).sort({ createdAt: -1 });
+  const cars = await Car.find({ owner: req.user._id })
+    .populate("reservedBy", "name email role")
+    .sort({ createdAt: -1 });
   res.json({ count: cars.length, cars });
+});
+
+export const reserveCar = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400);
+    throw new Error("Invalid car id");
+  }
+
+  const car = await Car.findById(id);
+  if (!car) {
+    res.status(404);
+    throw new Error("Car listing not found");
+  }
+
+  if (car.owner.toString() === req.user._id.toString()) {
+    res.status(403);
+    throw new Error("Owner cannot reserve own listing");
+  }
+
+  if (car.reserved) {
+    res.status(409);
+    throw new Error("Listing is already reserved");
+  }
+
+  car.reserved = true;
+  car.reservedBy = req.user._id;
+  car.reservedAt = new Date();
+  await car.save();
+
+  const populated = await Car.findById(car._id)
+    .populate("owner", "name email role")
+    .populate("reservedBy", "name email role");
+
+  res.json({ message: "Listing reserved", car: populated });
+});
+
+export const unreserveCar = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400);
+    throw new Error("Invalid car id");
+  }
+
+  const car = await Car.findById(id);
+  if (!car) {
+    res.status(404);
+    throw new Error("Car listing not found");
+  }
+
+  if (!car.reserved) {
+    res.status(409);
+    throw new Error("Listing is not reserved");
+  }
+
+  const isOwner = car.owner.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  const isReservedByCurrentUser =
+    car.reservedBy && car.reservedBy.toString() === req.user._id.toString();
+
+  if (!isOwner && !isAdmin && !isReservedByCurrentUser) {
+    res.status(403);
+    throw new Error("Not allowed to cancel this reservation");
+  }
+
+  car.reserved = false;
+  car.reservedBy = null;
+  car.reservedAt = null;
+  await car.save();
+
+  const populated = await Car.findById(car._id)
+    .populate("owner", "name email role")
+    .populate("reservedBy", "name email role");
+
+  res.json({ message: "Reservation canceled", car: populated });
 });
