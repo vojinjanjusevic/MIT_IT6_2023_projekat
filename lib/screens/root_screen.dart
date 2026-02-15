@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/car_store.dart';
 import 'home_screen.dart';
 import 'my_listings_screen.dart';
 import 'profile_screen.dart';
@@ -18,6 +19,12 @@ class _RootScreenState extends State<RootScreen> {
     MyListingsScreen(),
     ProfileScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    CarStore.instance.fetchCars();
+  }
 
   @override
   Widget build(BuildContext context) {

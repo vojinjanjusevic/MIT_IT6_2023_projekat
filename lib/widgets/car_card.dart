@@ -1,7 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/car.dart';
 import 'spec_chip.dart';
-import 'dart:io';
 
 class CarCard extends StatelessWidget {
   final Car car;
@@ -44,7 +44,7 @@ class CarCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${car.priceEur} €',
+                      '${car.priceEur} EUR',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -63,6 +63,16 @@ class CarCard extends StatelessWidget {
                           icon: Icons.location_on_outlined,
                           text: car.city,
                         ),
+                        if (car.reservationStatus == 'pending')
+                          const SpecChip(
+                            icon: Icons.hourglass_top_rounded,
+                            text: 'Na cekanju',
+                          ),
+                        if (car.reserved)
+                          const SpecChip(
+                            icon: Icons.bookmark_added_outlined,
+                            text: 'Rezervisano',
+                          ),
                       ],
                     ),
                   ],

@@ -1,9 +1,8 @@
-import 'dart:math';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../data/car_store.dart';
 import '../models/car.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 
 class AddEditListingScreen extends StatefulWidget {
   final String? existingCarId;
@@ -15,40 +14,67 @@ class AddEditListingScreen extends StatefulWidget {
 }
 
 class _AddEditListingScreenState extends State<AddEditListingScreen> {
+  static const List<String> fuelOptions = [
+    'Dizel',
+    'Benzin',
+    'Elektricni pogon',
+    'Hibridni pogon',
+    'Benzin + gas (TNG)',
+  ];
+
+  static const List<String> gearboxOptions = [
+    'Manuelni',
+    'Automatski/poluautomatski',
+  ];
+
   final formKey = GlobalKey<FormState>();
   final titleCtrl = TextEditingController();
   final yearCtrl = TextEditingController();
   final kmCtrl = TextEditingController();
   final priceCtrl = TextEditingController();
   final cityCtrl = TextEditingController();
-  final fuelCtrl = TextEditingController();
-  final gearboxCtrl = TextEditingController();
   final descCtrl = TextEditingController();
+  final ImagePicker picker = ImagePicker();
 
   Car? existing;
-  final ImagePicker picker = ImagePicker();
+  bool loading = false;
+  bool saving = false;
   List<String> imagePaths = [];
+  String selectedFuel = fuelOptions.first;
+  String selectedGearbox = gearboxOptions.first;
 
   @override
   void initState() {
     super.initState();
-    final store = CarStore.instance;
-
     if (widget.existingCarId != null) {
-      existing = store.allCars.firstWhere((c) => c.id == widget.existingCarId);
-      final c = existing!;
-      titleCtrl.text = c.title;
-      yearCtrl.text = c.year.toString();
-      kmCtrl.text = c.km.toString();
-      priceCtrl.text = c.priceEur.toString();
-      cityCtrl.text = c.city;
-      fuelCtrl.text = c.fuel;
-      gearboxCtrl.text = c.gearbox;
-      descCtrl.text = c.description;
-      imagePaths = List<String>.from(c.imagePaths);
-    } else {
-      fuelCtrl.text = 'Dizel';
-      gearboxCtrl.text = 'Manuelni';
+      _loadExisting();
+    }
+  }
+
+  Future<void> _loadExisting() async {
+    setState(() => loading = true);
+    try {
+      final car = await CarStore.instance.fetchCarById(widget.existingCarId!);
+      existing = car;
+      titleCtrl.text = car.title;
+      yearCtrl.text = car.year.toString();
+      kmCtrl.text = car.km.toString();
+      priceCtrl.text = car.priceEur.toString();
+      cityCtrl.text = car.city;
+      selectedFuel = fuelOptions.contains(car.fuel) ? car.fuel : fuelOptions.first;
+      selectedGearbox = gearboxOptions.contains(car.gearbox)
+          ? car.gearbox
+          : gearboxOptions.first;
+      descCtrl.text = car.description;
+      imagePaths = List<String>.from(car.imagePaths);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+      Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -59,8 +85,6 @@ class _AddEditListingScreenState extends State<AddEditListingScreen> {
     kmCtrl.dispose();
     priceCtrl.dispose();
     cityCtrl.dispose();
-    fuelCtrl.dispose();
-    gearboxCtrl.dispose();
     descCtrl.dispose();
     super.dispose();
   }
@@ -74,45 +98,63 @@ class _AddEditListingScreenState extends State<AddEditListingScreen> {
     });
   }
 
-  void save() {
+  Future<void> save() async {
     if (!formKey.currentState!.validate()) return;
 
     final store = CarStore.instance;
     final user = store.currentUser;
-
     if (user == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Moraš biti prijavljen.')));
+      ).showSnackBar(const SnackBar(content: Text('Moras biti prijavljen.')));
       return;
     }
 
+    setState(() => saving = true);
+
     final car = Car(
-      id: existing?.id ?? 'c${Random().nextInt(999999)}',
+      id: existing?.id ?? '',
       ownerId: existing?.ownerId ?? user.id,
+      ownerName: existing?.ownerName ?? user.name,
       title: titleCtrl.text.trim(),
       year: int.parse(yearCtrl.text.trim()),
       km: int.parse(kmCtrl.text.trim()),
       priceEur: int.parse(priceCtrl.text.trim()),
       city: cityCtrl.text.trim(),
-      fuel: fuelCtrl.text.trim(),
-      gearbox: gearboxCtrl.text.trim(),
+      fuel: selectedFuel,
+      gearbox: selectedGearbox,
       description: descCtrl.text.trim(),
       imagePaths: imagePaths,
+      reserved: existing?.reserved ?? false,
+      reservedById: existing?.reservedById,
+      reservedByName: existing?.reservedByName,
     );
 
-    if (existing == null) {
-      store.addCar(car);
-    } else {
-      store.updateCar(car);
+    try {
+      if (existing == null) {
+        await store.createCar(car);
+      } else {
+        await store.updateCar(car);
+      }
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => saving = false);
     }
-
-    Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEdit = existing != null;
+    final isEdit = widget.existingCarId != null;
+
+    if (loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       appBar: AppBar(title: Text(isEdit ? 'Izmeni oglas' : 'Dodaj oglas')),
@@ -139,11 +181,10 @@ class _AddEditListingScreenState extends State<AddEditListingScreen> {
                       controller: yearCtrl,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Godište',
+                        labelText: 'Godiste',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (v) =>
-                          int.tryParse(v ?? '') == null ? 'Broj' : null,
+                      validator: (v) => int.tryParse(v ?? '') == null ? 'Broj' : null,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -152,11 +193,10 @@ class _AddEditListingScreenState extends State<AddEditListingScreen> {
                       controller: kmCtrl,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Kilometraža',
+                        labelText: 'Kilometraza',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (v) =>
-                          int.tryParse(v ?? '') == null ? 'Broj' : null,
+                      validator: (v) => int.tryParse(v ?? '') == null ? 'Broj' : null,
                     ),
                   ),
                 ],
@@ -169,11 +209,10 @@ class _AddEditListingScreenState extends State<AddEditListingScreen> {
                       controller: priceCtrl,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Cena (€)',
+                        labelText: 'Cena (EUR)',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (v) =>
-                          int.tryParse(v ?? '') == null ? 'Broj' : null,
+                      validator: (v) => int.tryParse(v ?? '') == null ? 'Broj' : null,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -194,22 +233,80 @@ class _AddEditListingScreenState extends State<AddEditListingScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: TextFormField(
-                      controller: fuelCtrl,
+                    child: DropdownButtonFormField<String>(
+                      initialValue: selectedFuel,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Gorivo',
                         border: OutlineInputBorder(),
                       ),
+                      items: fuelOptions
+                          .map(
+                            (fuel) => DropdownMenuItem<String>(
+                              value: fuel,
+                              child: Text(
+                                fuel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      selectedItemBuilder: (context) => fuelOptions
+                          .map(
+                            (fuel) => Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                fuel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => selectedFuel = value);
+                      },
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: TextFormField(
-                      controller: gearboxCtrl,
+                    child: DropdownButtonFormField<String>(
+                      initialValue: selectedGearbox,
+                      isExpanded: true,
                       decoration: const InputDecoration(
-                        labelText: 'Menjač',
+                        labelText: 'Menjac',
                         border: OutlineInputBorder(),
                       ),
+                      items: gearboxOptions
+                          .map(
+                            (gearbox) => DropdownMenuItem<String>(
+                              value: gearbox,
+                              child: Text(
+                                gearbox,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      selectedItemBuilder: (context) => gearboxOptions
+                          .map(
+                            (gearbox) => Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                gearbox,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => selectedGearbox = value);
+                      },
                     ),
                   ),
                 ],
@@ -224,22 +321,19 @@ class _AddEditListingScreenState extends State<AddEditListingScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-
               OutlinedButton.icon(
                 onPressed: pickImages,
                 icon: const Icon(Icons.photo_library_outlined),
                 label: const Text('Dodaj slike'),
               ),
-
               const SizedBox(height: 10),
-
               if (imagePaths.isNotEmpty)
                 SizedBox(
                   height: 92,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: imagePaths.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
                     itemBuilder: (context, i) {
                       final p = imagePaths[i];
                       return Stack(
@@ -258,8 +352,7 @@ class _AddEditListingScreenState extends State<AddEditListingScreen> {
                             top: 0,
                             child: IconButton(
                               icon: const Icon(Icons.close),
-                              onPressed: () =>
-                                  setState(() => imagePaths.removeAt(i)),
+                              onPressed: () => setState(() => imagePaths.removeAt(i)),
                             ),
                           ),
                         ],
@@ -267,13 +360,17 @@ class _AddEditListingScreenState extends State<AddEditListingScreen> {
                     },
                   ),
                 ),
-
-              const SizedBox(height: 16),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: save,
-                icon: const Icon(Icons.save),
-                label: Text(isEdit ? 'Sačuvaj' : 'Objavi oglas'),
+                onPressed: saving ? null : save,
+                icon: saving
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save),
+                label: Text(isEdit ? 'Sacuvaj' : 'Objavi oglas'),
               ),
             ],
           ),

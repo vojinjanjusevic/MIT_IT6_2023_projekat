@@ -12,7 +12,29 @@ class AdminPanelScreen extends StatefulWidget {
 }
 
 class _AdminPanelScreenState extends State<AdminPanelScreen> {
-  void refresh() => setState(() {});
+  bool loading = true;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      await CarStore.instance.fetchCars();
+      await CarStore.instance.fetchUsers();
+    } catch (e) {
+      error = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
   Future<bool> _confirmDelete(BuildContext context, String title) async {
     return (await showDialog<bool>(
@@ -40,7 +62,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     final store = CarStore.instance;
     final me = store.currentUser;
 
-    // zaštita: ako neko nekako uđe bez admin role
     if (me == null || me.role != UserRole.admin) {
       return const Scaffold(
         body: Center(child: Text('Nemaš pristup admin panelu.')),
@@ -55,6 +76,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin panel'),
+          actions: [
+            IconButton(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(icon: Icon(Icons.directions_car), text: 'Oglasi'),
@@ -62,101 +89,123 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            // TAB 1: Oglasi
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: cars.isEmpty
-                  ? const Center(child: Text('Nema oglasa.'))
-                  : ListView.separated(
-                      itemCount: cars.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, i) {
-                        final car = cars[i];
-
-                        return Stack(
-                          children: [
-                            CarCard(
-                              car: car,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => CarDetailsScreen(carId: car.id),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              right: 8,
-                              top: 8,
-                              child: IconButton(
-                                tooltip: 'Obriši oglas',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () async {
-                                  final ok = await _confirmDelete(context, car.title);
-                                  if (!ok) return;
-                                  store.deleteCar(car.id);
-                                  refresh();
+        body: loading
+            ? const Center(child: CircularProgressIndicator())
+            : error != null
+                ? Center(child: Text(error!))
+                : TabBarView(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: cars.isEmpty
+                            ? const Center(child: Text('Nema oglasa.'))
+                            : ListView.separated(
+                                itemCount: cars.length,
+                                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                                itemBuilder: (context, i) {
+                                  final car = cars[i];
+                                  return Stack(
+                                    children: [
+                                      CarCard(
+                                        car: car,
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => CarDetailsScreen(carId: car.id),
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        right: 8,
+                                        top: 8,
+                                        child: IconButton(
+                                          tooltip: 'Obriši oglas',
+                                          icon: const Icon(Icons.delete_outline),
+                                          onPressed: () async {
+                                            final ok = await _confirmDelete(context, car.title);
+                                            if (!ok) return;
+                                            try {
+                                              await store.deleteCar(car.id);
+                                              if (mounted) setState(() {});
+                                            } catch (e) {
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    e
+                                                        .toString()
+                                                        .replaceFirst('Exception: ', ''),
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  );
                                 },
                               ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-            ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: users.isEmpty
+                            ? const Center(child: Text('Nema korisnika.'))
+                            : ListView.separated(
+                                itemCount: users.length,
+                                separatorBuilder: (_, _) => const Divider(height: 1),
+                                itemBuilder: (context, i) {
+                                  final u = users[i];
+                                  final isMe = me.id == u.id;
 
-            // TAB 2: Korisnici
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: users.isEmpty
-                  ? const Center(child: Text('Nema korisnika.'))
-                  : ListView.separated(
-                      itemCount: users.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        final u = users[i];
+                                  IconData roleIcon = Icons.person_outline;
+                                  String roleText = 'User';
+                                  if (u.role == UserRole.admin) {
+                                    roleText = 'Admin';
+                                    roleIcon = Icons.admin_panel_settings_outlined;
+                                  } else if (u.role == UserRole.guest) {
+                                    roleText = 'Guest';
+                                  } else {
+                                    roleIcon = Icons.person;
+                                  }
 
-                        final isMe = me.id == u.id;
-                        final isAdmin = u.role == UserRole.admin;
-
-                        IconData roleIcon = Icons.person_outline;
-                        String roleText = 'User';
-                        if (u.role == UserRole.guest) {
-                          roleText = 'Guest';
-                          roleIcon = Icons.person_outline;
-                        } else if (u.role == UserRole.user) {
-                          roleText = 'User';
-                          roleIcon = Icons.person;
-                        } else if (u.role == UserRole.admin) {
-                          roleText = 'Admin';
-                          roleIcon = Icons.admin_panel_settings_outlined;
-                        }
-
-                        return ListTile(
-                          leading: Icon(roleIcon),
-                          title: Text(u.name),
-                          subtitle: Text('${u.email} • $roleText'),
-                          trailing: IconButton(
-                            tooltip: isMe
-                                ? 'Ne možeš obrisati sebe'
-                                : (isAdmin ? 'Brisanje admina je zabranjeno' : 'Obriši korisnika'),
-                            onPressed: (isMe || isAdmin)
-                                ? null
-                                : () async {
-                                    final ok = await _confirmDelete(context, u.email);
-                                    if (!ok) return;
-                                    store.deleteUser(u.id);
-                                    refresh();
-                                  },
-                            icon: const Icon(Icons.delete_outline),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+                                  return ListTile(
+                                    leading: Icon(roleIcon),
+                                    title: Text(u.name),
+                                    subtitle: Text('${u.email} • $roleText'),
+                                    trailing: IconButton(
+                                      tooltip: isMe
+                                          ? 'Ne možeš obrisati sebe'
+                                          : 'Obriši korisnika',
+                                      onPressed: isMe
+                                          ? null
+                                          : () async {
+                                              final ok = await _confirmDelete(context, u.email);
+                                              if (!ok) return;
+                                              try {
+                                                await store.deleteUser(u.id);
+                                                if (mounted) setState(() {});
+                                              } catch (e) {
+                                                if (!mounted) return;
+                                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      e
+                                                          .toString()
+                                                          .replaceFirst('Exception: ', ''),
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                      icon: const Icon(Icons.delete_outline),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
       ),
     );
   }

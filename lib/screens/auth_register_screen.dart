@@ -22,10 +22,25 @@ class _AuthRegisterScreenState extends State<AuthRegisterScreen> {
     super.dispose();
   }
 
-  void submit() {
+  Future<void> submit() async {
     if (!formKey.currentState!.validate()) return;
-    CarStore.instance.register(nameCtrl.text.trim(), emailCtrl.text.trim());
-    Navigator.pop(context, true);
+    setState(() => loading = true);
+    try {
+      await CarStore.instance.register(
+        nameCtrl.text.trim(),
+        emailCtrl.text.trim(),
+        passCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   @override
@@ -54,10 +69,19 @@ class _AuthRegisterScreenState extends State<AuthRegisterScreen> {
                 controller: passCtrl,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Lozinka', border: OutlineInputBorder()),
-                validator: (v) => (v == null || v.length < 4) ? 'Min 4 karaktera' : null,
+                validator: (v) => (v == null || v.length < 6) ? 'Min 6 karaktera' : null,
               ),
               const Spacer(),
-              FilledButton(onPressed: submit, child: const Text('Napravi nalog')),
+              FilledButton(
+                onPressed: loading ? null : submit,
+                child: loading
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Napravi nalog'),
+              ),
             ],
           ),
         ),
@@ -65,3 +89,4 @@ class _AuthRegisterScreenState extends State<AuthRegisterScreen> {
     );
   }
 }
+  bool loading = false;

@@ -12,7 +12,7 @@ class _AuthLoginScreenState extends State<AuthLoginScreen> {
   final formKey = GlobalKey<FormState>();
   final emailCtrl = TextEditingController();
   final passCtrl = TextEditingController();
-  bool asAdmin = false;
+  bool loading = false;
 
   @override
   void dispose() {
@@ -21,15 +21,24 @@ class _AuthLoginScreenState extends State<AuthLoginScreen> {
     super.dispose();
   }
 
-  void submit() {
+  Future<void> submit() async {
     if (!formKey.currentState!.validate()) return;
-    final email = emailCtrl.text.trim();
-    if (asAdmin) {
-      CarStore.instance.loginAsAdmin(email);
-    } else {
-      CarStore.instance.loginAsUser(email);
+    setState(() => loading = true);
+    try {
+      await CarStore.instance.login(
+        emailCtrl.text.trim(),
+        passCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
-    Navigator.pop(context, true); // true -> login uspeo
   }
 
   @override
@@ -61,17 +70,20 @@ class _AuthLoginScreenState extends State<AuthLoginScreen> {
                   border: OutlineInputBorder(),
                 ),
                 validator: (v) =>
-                    (v == null || v.length < 4) ? 'Min 4 karaktera' : null,
+                    (v == null || v.length < 6) ? 'Min 6 karaktera' : null,
               ),
               const SizedBox(height: 8),
-              SwitchListTile(
-                value: asAdmin,
-                onChanged: (v) => setState(() => asAdmin = v),
-                title: const Text('Prijavi se kao admin'),
-                secondary: const Icon(Icons.admin_panel_settings_outlined),
-              ),
               const Spacer(),
-              FilledButton(onPressed: submit, child: const Text('Prijavi se')),
+              FilledButton(
+                onPressed: loading ? null : submit,
+                child: loading
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Prijavi se'),
+              ),
             ],
           ),
         ),

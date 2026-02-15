@@ -1,5 +1,7 @@
+
 import mongoose from "mongoose";
 import Car from "../models/Car.js";
+import Notification from "../models/Notification.js";
 import asyncHandler from "../utils/asyncHandler.js";
 
 const toNumber = (value) => {
@@ -159,6 +161,8 @@ export const createCar = asyncHandler(async (req, res) => {
     reserved: false,
     reservedBy: null,
     reservedAt: null,
+    reservationStatus: "none",
+    reservationRequestedAt: null,
   });
 
   const car = await Car.findById(created._id)
@@ -245,8 +249,20 @@ export const getMyCars = asyncHandler(async (req, res) => {
   res.json({ count: cars.length, cars });
 });
 
+export const getReservedByMeCars = asyncHandler(async (req, res) => {
+  const cars = await Car.find({
+    reservedBy: req.user._id,
+    $or: [{ reserved: true }, { reservationStatus: "pending" }],
+  })
+    .populate("owner", "name email role")
+    .populate("reservedBy", "name email role")
+    .sort({ reservationRequestedAt: -1, reservedAt: -1, createdAt: -1 });
+  res.json({ count: cars.length, cars });
+});
+
 export const reserveCar = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const { message, contactPhone, preferredTime } = req.body ?? {};
 
   if (!mongoose.isValidObjectId(id)) {
     res.status(400);
@@ -269,16 +285,170 @@ export const reserveCar = asyncHandler(async (req, res) => {
     throw new Error("Listing is already reserved");
   }
 
-  car.reserved = true;
+  if (car.reservationStatus === "pending") {
+    res.status(409);
+    throw new Error("Listing already has pending reservation request");
+  }
+
+  car.reserved = false;
   car.reservedBy = req.user._id;
-  car.reservedAt = new Date();
+  car.reservedAt = null;
+  car.reservationStatus = "pending";
+  car.reservationRequestedAt = new Date();
+  car.reservationNote = {
+    message: typeof message === "string" ? message.trim() : "",
+    contactPhone: typeof contactPhone === "string" ? contactPhone.trim() : "",
+    preferredTime: typeof preferredTime === "string" ? preferredTime.trim() : "",
+  };
   await car.save();
+
+  await Notification.create([
+    {
+      user: car.owner,
+      actor: req.user._id,
+      car: car._id,
+      type: "reservation_created",
+      title: "Novi zahtev za rezervaciju",
+      message: `${req.user.name} je poslao zahtev za rezervaciju oglasa "${car.title}".`,
+    },
+    {
+      user: req.user._id,
+      actor: car.owner,
+      car: car._id,
+      type: "reservation_created",
+      title: "Rezervacija poslata",
+      message: `Poslao/la si zahtev za rezervaciju oglasa "${car.title}".`,
+    },
+  ]);
 
   const populated = await Car.findById(car._id)
     .populate("owner", "name email role")
     .populate("reservedBy", "name email role");
 
-  res.json({ message: "Listing reserved", car: populated });
+  res.json({ message: "Reservation request sent", car: populated });
+});
+
+export const approveReservation = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400);
+    throw new Error("Invalid car id");
+  }
+
+  const car = await Car.findById(id);
+  if (!car) {
+    res.status(404);
+    throw new Error("Car listing not found");
+  }
+
+  const isOwner = car.owner.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  if (!isOwner && !isAdmin) {
+    res.status(403);
+    throw new Error("Not allowed to approve this reservation");
+  }
+
+  if (car.reservationStatus !== "pending" || !car.reservedBy) {
+    res.status(409);
+    throw new Error("Listing has no pending reservation request");
+  }
+
+  const requesterId = car.reservedBy;
+  car.reserved = true;
+  car.reservedAt = new Date();
+  car.reservationStatus = "approved";
+  await car.save();
+
+  await Notification.create([
+    {
+      user: requesterId,
+      actor: req.user._id,
+      car: car._id,
+      type: "reservation_approved",
+      title: "Rezervacija potvrdena",
+      message: `Tvoj zahtev za oglas "${car.title}" je potvrden.`,
+    },
+    {
+      user: car.owner,
+      actor: req.user._id,
+      car: car._id,
+      type: "reservation_approved",
+      title: "Rezervacija potvrdena",
+      message: `Rezervacija za oglas "${car.title}" je potvrdena.`,
+    },
+  ]);
+
+  const populated = await Car.findById(car._id)
+    .populate("owner", "name email role")
+    .populate("reservedBy", "name email role");
+
+  res.json({ message: "Reservation approved", car: populated });
+});
+
+export const rejectReservation = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400);
+    throw new Error("Invalid car id");
+  }
+
+  const car = await Car.findById(id);
+  if (!car) {
+    res.status(404);
+    throw new Error("Car listing not found");
+  }
+
+  const isOwner = car.owner.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  if (!isOwner && !isAdmin) {
+    res.status(403);
+    throw new Error("Not allowed to reject this reservation");
+  }
+
+  if (car.reservationStatus !== "pending" || !car.reservedBy) {
+    res.status(409);
+    throw new Error("Listing has no pending reservation request");
+  }
+
+  const requesterId = car.reservedBy;
+  car.reserved = false;
+  car.reservedBy = null;
+  car.reservedAt = null;
+  car.reservationStatus = "none";
+  car.reservationRequestedAt = null;
+  car.reservationNote = {
+    message: "",
+    contactPhone: "",
+    preferredTime: "",
+  };
+  await car.save();
+
+  await Notification.create([
+    {
+      user: requesterId,
+      actor: req.user._id,
+      car: car._id,
+      type: "reservation_rejected",
+      title: "Rezervacija odbijena",
+      message: `Tvoj zahtev za oglas "${car.title}" je odbijen.`,
+    },
+    {
+      user: car.owner,
+      actor: req.user._id,
+      car: car._id,
+      type: "reservation_rejected",
+      title: "Rezervacija odbijena",
+      message: `Zahtev za rezervaciju oglasa "${car.title}" je odbijen.`,
+    },
+  ]);
+
+  const populated = await Car.findById(car._id)
+    .populate("owner", "name email role")
+    .populate("reservedBy", "name email role");
+
+  res.json({ message: "Reservation rejected", car: populated });
 });
 
 export const unreserveCar = asyncHandler(async (req, res) => {
@@ -295,9 +465,10 @@ export const unreserveCar = asyncHandler(async (req, res) => {
     throw new Error("Car listing not found");
   }
 
-  if (!car.reserved) {
+  const wasPending = car.reservationStatus === "pending";
+  if (!car.reserved && !wasPending) {
     res.status(409);
-    throw new Error("Listing is not reserved");
+    throw new Error("Listing is not reserved or pending");
   }
 
   const isOwner = car.owner.toString() === req.user._id.toString();
@@ -313,7 +484,39 @@ export const unreserveCar = asyncHandler(async (req, res) => {
   car.reserved = false;
   car.reservedBy = null;
   car.reservedAt = null;
+  car.reservationStatus = "none";
+  car.reservationRequestedAt = null;
+  car.reservationNote = {
+    message: "",
+    contactPhone: "",
+    preferredTime: "",
+  };
   await car.save();
+
+  if (isReservedByCurrentUser) {
+    await Notification.create([
+      {
+        user: car.owner,
+        actor: req.user._id,
+        car: car._id,
+        type: "reservation_canceled",
+        title: wasPending ? "Zahtev je otkazan" : "Rezervacija je otkazana",
+        message: wasPending
+          ? `${req.user.name} je otkazao zahtev za "${car.title}".`
+          : `${req.user.name} je otkazao rezervaciju za "${car.title}".`,
+      },
+      {
+        user: req.user._id,
+        actor: car.owner,
+        car: car._id,
+        type: "reservation_canceled",
+        title: wasPending ? "Otkazao/la si zahtev" : "Otkazao/la si rezervaciju",
+        message: wasPending
+          ? `Zahtev za rezervaciju oglasa "${car.title}" je otkazan.`
+          : `Rezervacija oglasa "${car.title}" je otkazana.`,
+      },
+    ]);
+  }
 
   const populated = await Car.findById(car._id)
     .populate("owner", "name email role")

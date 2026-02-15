@@ -65,6 +65,32 @@ const carSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    reservationStatus: {
+      type: String,
+      enum: ["none", "pending", "approved"],
+      default: "none",
+    },
+    reservationRequestedAt: {
+      type: Date,
+      default: null,
+    },
+    reservationNote: {
+      message: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      contactPhone: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      preferredTime: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+    },
   },
   { timestamps: true }
 );

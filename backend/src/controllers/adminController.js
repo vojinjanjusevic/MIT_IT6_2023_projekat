@@ -39,7 +39,20 @@ export const deleteUser = asyncHandler(async (req, res) => {
   const deletedCarsResult = await Car.deleteMany({ owner: user._id });
   await Car.updateMany(
     { reservedBy: user._id },
-    { $set: { reserved: false, reservedBy: null, reservedAt: null } }
+    {
+      $set: {
+        reserved: false,
+        reservedBy: null,
+        reservedAt: null,
+        reservationStatus: "none",
+        reservationRequestedAt: null,
+        reservationNote: {
+          message: "",
+          contactPhone: "",
+          preferredTime: "",
+        },
+      },
+    }
   );
 
   await user.deleteOne();
